@@ -1,11 +1,32 @@
-const express = require('express')
-const app = express()
-const port = 5000
+require('dotenv').config();
 
-app.get('/', (req, res) => {
-    res.send('Olá mundo, Hello world')
-});
+const express = require('express');
+const cors = require('cors');
+const conn = require('./db/conn');
 
-app.listen(port, () => {
-    console.log(` App rodando na porta ${port}`)
-})
+
+const app = express();
+// Config JSON response
+app.use(express.json());
+
+app.use(cors({ credentials: true, origin: 'http://localhost:3000' }));
+
+// Public folder for images
+app.use(express.static('public'));
+
+// Routes
+const megaRoutes = require('./routes/megaRoutes');
+
+app.use('/mega', megaRoutes);
+
+
+conn
+    .sync()
+    //.sync({ force: true })
+    .then(async () => {
+
+        app.listen(5000, () => {
+            console.log('O servidor está rodando na porta 5000');
+        });
+    })
+    .catch((err) => console.log(err));
