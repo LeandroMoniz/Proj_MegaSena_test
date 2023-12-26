@@ -4,6 +4,13 @@ const express = require('express');
 const cors = require('cors');
 const conn = require('./db/conn');
 
+//models
+const Resultados = require('./models/resultados')
+const Ganhadores = require('./models/ganhadores')
+
+const models = [Resultados, Ganhadores];
+
+
 
 const app = express();
 // Config JSON response
@@ -24,7 +31,9 @@ conn
     .sync()
     //.sync({ force: true })
     .then(async () => {
-
+        for (const model of models) {
+            await model.sync();
+        }
         app.listen(5000, () => {
             console.log('O servidor está rodando na porta 5000');
         });
