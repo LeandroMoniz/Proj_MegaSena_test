@@ -1,10 +1,11 @@
 const axios = require('axios');
 const express = require('express');
 const https = require('https');
-
-
-
-
+const moment = require('moment');
+const Sequelize = require('sequelize');
+//models
+const Resultado = require('../models/resultados');
+const Ganhadores = require('../models/ganhadores');
 
 module.exports = class megaController {
 
@@ -120,7 +121,298 @@ module.exports = class megaController {
         });
     }
 
-    static async
+    static async postResultadoPorJogo(req, res) {
+
+        const jogo = req.query.jogo
+
+
+        const temJogo = await Resultado.findOne({ where: { numeroSorteio: jogo } })
+
+        if (temJogo) {
+            res.status(402).json({
+                message: 'Jogo já gravado',
+            });
+            return;
+        }
+
+        if (!jogo || isNaN(parseInt(jogo))) {
+            res.status(400).json({
+                message: 'Número de concurso inicial inválido.',
+            });
+            return;
+        }
+
+        // Definir a URL da API da Mega Sena
+        const megaSenaApiUrl = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${jogo}`;
+
+        const config = {
+            httpsAgent: new https.Agent({ rejectUnauthorized: false })
+        };
+
+        try {
+            // Fazer uma requisição GET para a API
+            const resposta = await axios.get(megaSenaApiUrl, config);
+
+            if (!resposta || !resposta.data || !resposta.data.dezenasSorteadasOrdemSorteio) {
+                console.error('Resposta da API não contém os dados esperados:', resposta);
+                res.status(500).send('Erro ao obter resultados da Mega Sena');
+                return;
+            }
+
+            const respostaData = resposta.data;
+
+            const numerosSorteados = respostaData.dezenasSorteadasOrdemSorteio.map(numero => parseInt(numero));
+            const numerosSorteadosOrdenado = respostaData.listaDezenas.map(numero => parseInt(numero));
+            console.log("data", respostaData.dataProximoConcurso)
+
+            // Certifique-se de que a dataProximoConcurso seja uma data válida ou null
+            const dataApuracao = respostaData.dataApuracao
+                ? moment(respostaData.dataApuracao, 'DD/MM/YYYY').toDate()
+                : null;
+            const dataProximoConcurso = respostaData.dataProximoConcurso
+                ? moment(respostaData.dataProximoConcurso, 'DD/MM/YYYY').toDate()
+                : null;
+
+
+            const resultado = await Resultado.create({
+                acumulado: respostaData.acumulado,
+                dataApuracao: dataApuracao,
+                dataProximoConcurso: dataProximoConcurso,
+                numeroSorteio: respostaData.numero,
+                localSorteio: respostaData.localSorteio,
+                nomeMunicipioUFSorteio: respostaData.nomeMunicipioUFSorteio,
+                numeroConcursoAnterior: respostaData.numeroConcursoAnterior,
+                numeroConcursoProximo: respostaData.numeroConcursoProximo,
+                primeiroNumSort: numerosSorteados[0],
+                segundoNumSort: numerosSorteados[1],
+                terceiroNumSort: numerosSorteados[2],
+                quartoNumSort: numerosSorteados[3],
+                quintoNumSort: numerosSorteados[4],
+                sextoNumSort: numerosSorteados[5],
+                primeiroOrd: numerosSorteadosOrdenado[0],
+                segundoOrd: numerosSorteadosOrdenado[1],
+                terceiroOrd: numerosSorteadosOrdenado[2],
+                quartoOrd: numerosSorteadosOrdenado[3],
+                quintoOrd: numerosSorteadosOrdenado[4],
+                sextoOrd: numerosSorteadosOrdenado[5],
+            })
+
+            console.log("resultado", resultado)
+
+            const listaRateioPremio = resposta.data.listaRateioPremio;
+
+            for (const item of listaRateioPremio) {
+                await Ganhadores.create({
+                    numeroSorteio: respostaData.numero,
+                    descricaoFaixa: item.descricaoFaixa,
+                    faixa: item.faixa,
+                    numeroDeGanhadores: item.numeroDeGanhadores,
+                    valorPremio: item.valorPremio,
+                })
+            }
+
+            // Retornar os resultados
+            res.status(200).send(resultado);
+        } catch (erro) {
+            console.error('Erro ao obter resultados da Mega Sena:', erro.message);
+            throw erro;
+        }
+
+    }
+
+
+    static async postResultadoPorPeriodo(req, res) {
+        console.log("aqui")
+        const jogoInicial = req.query.jogoInicial
+
+
+        const temJogo = await Resultado.findOne({ where: { numeroSorteio: jogoInicial } })
+
+        if (temJogo) {
+            res.status(402).json({
+                message: 'Jogo já gravado',
+            });
+            return;
+        }
+
+        if (!jogoInicial || isNaN(parseInt(jogoInicial))) {
+            res.status(400).json({
+                message: 'Número de concurso inicial inválido.',
+            });
+            return;
+        }
+
+
+        try {
+
+            let jogoAtual = parseInt(jogoInicial);
+
+            while (true) {
+                // Verificar se o jogo já foi gravado
+                const temJogo = await Resultado.findOne({ where: { numeroSorteio: jogoAtual } });
+
+                if (temJogo) {
+                    console.log(`Jogo ${jogoAtual} já gravado. Parando a busca.`);
+                    res.status(200).json({
+                        message: `Jogo ${jogoAtual} já gravado. Parando a busca.`,
+                    });
+                    return;
+                }
+
+
+                // Definir a URL da API da Mega Sena
+                const megaSenaApiUrl = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${jogoAtual}`;
+
+                const config = {
+                    httpsAgent: new https.Agent({ rejectUnauthorized: false })
+                };
+
+                const resposta = await axios.get(megaSenaApiUrl, config);
+
+                if (!resposta || !resposta.data || !resposta.data.dezenasSorteadasOrdemSorteio) {
+                    console.error('Resposta da API não contém os dados esperados:', resposta);
+                    res.status(500).send('Erro ao obter resultados da Mega Sena');
+                    return;
+                }
+
+                const respostaData = resposta.data;
+
+                const numerosSorteados = respostaData.dezenasSorteadasOrdemSorteio.map(numero => parseInt(numero));
+                const numerosSorteadosOrdenado = respostaData.listaDezenas.map(numero => parseInt(numero));
+                console.log("data", respostaData.dataProximoConcurso)
+
+                // Certifique-se de que a dataProximoConcurso seja uma data válida ou null
+                const dataApuracao = respostaData.dataApuracao
+                    ? moment(respostaData.dataApuracao, 'DD/MM/YYYY').toDate()
+                    : null;
+                const dataProximoConcurso = respostaData.dataProximoConcurso
+                    ? moment(respostaData.dataProximoConcurso, 'DD/MM/YYYY').toDate()
+                    : null;
+
+
+                const resultado = await Resultado.create({
+                    acumulado: respostaData.acumulado,
+                    dataApuracao: dataApuracao,
+                    dataProximoConcurso: dataProximoConcurso,
+                    numeroSorteio: respostaData.numero,
+                    localSorteio: respostaData.localSorteio,
+                    nomeMunicipioUFSorteio: respostaData.nomeMunicipioUFSorteio,
+                    numeroConcursoAnterior: respostaData.numeroConcursoAnterior,
+                    numeroConcursoProximo: respostaData.numeroConcursoProximo,
+                    primeiroNumSort: numerosSorteados[0],
+                    segundoNumSort: numerosSorteados[1],
+                    terceiroNumSort: numerosSorteados[2],
+                    quartoNumSort: numerosSorteados[3],
+                    quintoNumSort: numerosSorteados[4],
+                    sextoNumSort: numerosSorteados[5],
+                    primeiroOrd: numerosSorteadosOrdenado[0],
+                    segundoOrd: numerosSorteadosOrdenado[1],
+                    terceiroOrd: numerosSorteadosOrdenado[2],
+                    quartoOrd: numerosSorteadosOrdenado[3],
+                    quintoOrd: numerosSorteadosOrdenado[4],
+                    sextoOrd: numerosSorteadosOrdenado[5],
+                })
+
+                console.log("resultado", resultado)
+
+                const listaRateioPremio = resposta.data.listaRateioPremio;
+
+                for (const item of listaRateioPremio) {
+                    await Ganhadores.create({
+                        numeroSorteio: respostaData.numero,
+                        descricaoFaixa: item.descricaoFaixa,
+                        faixa: item.faixa,
+                        numeroDeGanhadores: item.numeroDeGanhadores,
+                        valorPremio: item.valorPremio,
+                    })
+                }
+
+                // Incrementar o número do concurso para a próxima iteração
+                jogoAtual++;
+
+                // Aguardar um tempo para não sobrecarregar a API
+                // (você pode ajustar o tempo conforme necessário)
+                await sleep(3000); // 1 segundo
+            }
+
+        } catch (erro) {
+            console.error('Erro ao obter resultados da Mega Sena:', erro.message);
+            throw erro;
+        }
+
+        // Função auxiliar para aguardar um determinado tempo
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+    static async analiseOne(req, res) {
+        try {
+            const contagemNumeros = await Resultado.findAll({
+                attributes: [
+                    'primeiroNumSort',
+                    [Sequelize.fn('COUNT', Sequelize.col('primeiroNumSort')), 'ocorrencias'],
+                ],
+                group: ['primeiroNumSort'],
+                order: [[Sequelize.fn('COUNT', Sequelize.col('primeiroNumSort')), 'DESC']],
+            });
+
+            const resultados = contagemNumeros.map((resultado) => ({
+                numero: resultado.get('primeiroNumSort'),
+                ocorrencias: resultado.get('ocorrencias'),
+            }));
+
+            res.status(200).json({
+                message: 'Contagem de números concluída com sucesso na primeira bola do sorteio',
+                data: resultados,
+            });
+
+
+        } catch (erro) {
+            console.error('Erro ao analisar números sorteados:', erro);
+        }
+    }
+
+    static async analiseTwo(req, res) {
+        try {
+            const contagemNumeros = await Resultado.findAll({
+                attributes: [
+                    'primeiroOrd',
+                    [Sequelize.fn('COUNT', Sequelize.col('primeiroOrd')), 'ocorrencias'],
+                ],
+                group: ['primeiroOrd'],
+                order: [[Sequelize.fn('COUNT', Sequelize.col('primeiroOrd')), 'DESC']],
+            });
+
+            const resultados = contagemNumeros.map((resultado) => ({
+                numero: resultado.get('primeiroOrd'),
+                ocorrencias: resultado.get('ocorrencias'),
+            }));
+
+            res.status(200).json({
+                message: 'Menor numero entre sorteio quantas vez saiu,',
+                data: resultados,
+            });
+
+
+        } catch (erro) {
+            console.error('Erro ao analisar números sorteados:', erro);
+        }
+    }
 
 
 
@@ -130,211 +422,3 @@ module.exports = class megaController {
 }
 
 
-// const express = require('express')
-// const app = express()
-// const port = 5000
-// const sequentialCounts = {}; // Objeto para rastrear a contagem de sequências
-// const sequenceLength = 1; // Tamanho da sequência desejada
-
-
-
-
-// app.get('/resultado', (req, res) => {
-//     const readline = require("readline")
-
-//     const fs = require("fs");
-
-//     const line = readline.createInterface({
-//         input: fs.createReadStream("./public/mega.csv")
-//     })
-
-//     line.on("line", (data) => {
-//         let csv = data.split(";");
-//     })
-
-//     const numberToSearch = req.query.number
-
-//     if (isNaN(numberToSearch)) {
-//         return res.status(400).json({ error: "Número não especificado na URL." });
-//     }
-
-//     line.on("line", (data) => {
-//         const numbers = data.split(";").slice(2).map(Number);
-
-//         for (let i = 0; i < numbers.length; i++) {
-//             if (numbers[i] == numberToSearch) {
-//                 sequentialCounts[numberToSearch] = (sequentialCounts[numberToSearch] || 0) + 1;
-//             }
-//         }
-//     });
-
-//     line.on("close", () => {
-//         // Enviar a resposta de volta para o cliente (Postman)
-//         res.json({ count: sequentialCounts[numberToSearch] || 0 });
-//     });
-
-
-
-// });
-
-// app.get('/resultadotwo', (req, res) => {
-//     const readline = require("readline")
-
-//     const fs = require("fs");
-//     const sequentialCounts = {};
-
-//     const line = readline.createInterface({
-//         input: fs.createReadStream("./public/mega.csv")
-//     })
-
-//     line.on("line", (data) => {
-//         let csv = data.split(";");
-//     })
-
-
-//     const number1 = req.query.number1;
-//     const number2 = req.query.number2;
-
-//     console.log(number1)
-//     console.log(number2)
-
-
-//     if (isNaN(number1) || isNaN(number2)) {
-//         return res.status(400).json({ error: "Número não especificado na URL." });
-//     }
-
-//     line.on("line", (data) => {
-//         const numbers = data.split(";").slice(2).map(Number);
-
-//         for (let i = 0; i < numbers.length - 1; i++) {
-//             if (numbers[i] == number1 && numbers[i + 1] == number2) {
-//                 const sequence = `${number1}-${number2}`;
-//                 sequentialCounts[sequence] = (sequentialCounts[sequence] || 0) + 1;
-//             }
-//         }
-//     });
-
-//     line.on("close", () => {
-//         // Enviar a resposta de volta para o cliente (Postman)
-//         const sequence = `${number1}-${number2}`;
-//         res.json({ count: sequentialCounts[sequence] || 0 });
-//     });
-
-
-
-// });
-
-// app.get('/resultadothree', (req, res) => {
-//     const readline = require("readline")
-
-//     const fs = require("fs");
-//     const sequentialCounts = {};
-
-//     const line = readline.createInterface({
-//         input: fs.createReadStream("./public/mega.csv")
-//     })
-
-
-//     line.on("line", (data) => {
-//         let csv = data.split(";");
-//     })
-
-
-//     const number1 = req.query.number1;
-//     const number2 = req.query.number2;
-//     const number3 = req.query.number3;
-
-//     console.log(number1)
-//     console.log(number2)
-//     console.log(number3)
-
-
-//     if (isNaN(number1) || isNaN(number2)) {
-//         return res.status(400).json({ error: "Número não especificado na URL." });
-//     }
-
-//     line.on("line", (data) => {
-//         const numbers = data.split(";").slice(2).map(Number);
-
-//         for (let i = 0; i < numbers.length - 2; i++) {
-//             if (numbers[i] == number1 && numbers[i + 1] == number2 && numbers[i + 2] == number3) {
-//                 const sequence = `${number1}-${number2}-${number3}`;
-//                 sequentialCounts[sequence] = (sequentialCounts[sequence] || 0) + 1;
-//             }
-//         }
-//     });
-
-//     line.on("close", () => {
-//         // Enviar a resposta de volta para o cliente (Postman)
-//         const sequence = `${number1}-${number2}-${number3}`;
-//         res.json({ count: sequentialCounts[sequence] || 0 });
-//     });
-
-
-
-// });
-
-
-// app.get('/resultadoteste', (req, res) => {
-//     const readline = require("readline")
-
-//     const fs = require("fs");
-//     const sequentialCounts = {};
-
-//     const line = readline.createInterface({
-//         input: fs.createReadStream("./public/mega.csv")
-//     })
-
-//     line.on("line", (data) => {
-//         let csv = data.split(";");
-//     })
-
-
-//     const numbersToCheck = [
-//         req.query.number1,
-//         req.query.number2,
-//         req.query.number3
-//     ];
-
-//     console.log(numbersToCheck)
-
-
-//     if (numbersToCheck.some(isNaN)) {
-//         return res.status(400).json({ error: "Números não especificados na URL." });
-//     }
-
-//     line.on("line", (data) => {
-//         const numbers = data.split(";").slice(2).map(Number);
-
-//         for (let i = 0; i < numbers.length - 5; i++) {
-//             const sequenceToCheck = numbers.slice(i, i + 3);
-
-//             if (arraysEqual(sequenceToCheck, numbersToCheck)) {
-//                 const sequence = numbers.slice(i, i + 6).join('-');
-//                 sequentialCounts[sequence] = (sequentialCounts[sequence] || 0) + 1;
-//             }
-//         }
-//     });
-
-//     line.on("close", () => {
-//         // Enviar a resposta de volta para o cliente (Postman)
-//         const sequence = numbersToCheck.join('-');
-//         res.json({ count: sequentialCounts[sequence] || 0 });
-//     });
-
-
-
-// });
-
-// // Função para verificar igualdade entre arrays
-// function arraysEqual(arr1, arr2) {
-//     if (arr1.length !== arr2.length) return false;
-//     for (let i = 0; i < arr1.length; i++) {
-//         if (arr1[i] !== arr2[i]) return false;
-//     }
-//     return true;
-// }
-
-// app.listen(port, () => {
-//     console.log(` App rodando na porta ${port}`)
-// })
