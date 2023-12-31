@@ -415,6 +415,160 @@ module.exports = class megaController {
     }
 
 
+    static async analiseThree(req, res) {
+        try {
+            const ocorrenciasPorNumero = {};
+
+            for (let numero = 1; numero <= 60; numero++) {
+                const contagem = await Resultado.count({
+                    where: {
+                        [Sequelize.Op.or]: [
+                            { primeiroOrd: numero },
+                            { segundoOrd: numero },
+                            { terceiroOrd: numero },
+                            { quartoOrd: numero },
+                            { quintoOrd: numero },
+                            { sextoOrd: numero },
+                        ],
+                    },
+                });
+
+                ocorrenciasPorNumero[numero] = contagem;
+            }
+
+
+            res.status(200).json({
+                message: 'numeros que sairão mais no ano de 2023',
+                data: ocorrenciasPorNumero,
+            });
+        } catch (erro) {
+            console.error('Erro ao analisar números sorteados:', erro);
+            res.status(500).json({ error: 'Erro ao analisar números sorteados' });
+        }
+    }
+
+    static async analiseFour(req, res) {
+        try {
+            const ocorrenciasPorNumero = {};
+
+            for (let numero = 1; numero <= 60; numero++) {
+                const contagem = await Resultado.count({
+                    where: {
+                        [Sequelize.Op.and]: [
+                            {
+                                [Sequelize.Op.or]: [
+                                    { primeiroOrd: numero },
+                                    { segundoOrd: numero },
+                                    { terceiroOrd: numero },
+                                    { quartoOrd: numero },
+                                    { quintoOrd: numero },
+                                    { sextoOrd: numero },
+                                ]
+                            },
+                            { acumulado: false },
+                        ],
+
+                    },
+
+                });
+
+                ocorrenciasPorNumero[numero] = contagem;
+            }
+
+
+            res.status(200).json({
+                message: 'numeros que sairão mais no ano de 2023',
+                data: ocorrenciasPorNumero,
+            });
+        } catch (erro) {
+            console.error('Erro ao analisar números sorteados:', erro);
+            res.status(500).json({ error: 'Erro ao analisar números sorteados' });
+        }
+    }
+
+    static async analiseFive(req, res) {
+        try {
+
+            const porJogosGanhos = {};
+
+            for (let numero = 1; numero <= 60; numero++) {
+                const contagem = await Resultado.count({
+                    where: {
+                        [Sequelize.Op.and]: [
+                            {
+                                [Sequelize.Op.or]: [
+                                    { primeiroOrd: numero },
+                                    { segundoOrd: numero },
+                                    { terceiroOrd: numero },
+                                    { quartoOrd: numero },
+                                    { quintoOrd: numero },
+                                    { sextoOrd: numero },
+                                ]
+                            },
+                            { acumulado: false },
+                        ],
+
+                    },
+
+                });
+
+                porJogosGanhos[numero] = contagem;
+            }
+
+            const ocorrenciasPorNumero = {};
+
+            for (let numero = 1; numero <= 60; numero++) {
+                const contagem = await Resultado.count({
+                    where: {
+                        [Sequelize.Op.or]: [
+                            { primeiroOrd: numero },
+                            { segundoOrd: numero },
+                            { terceiroOrd: numero },
+                            { quartoOrd: numero },
+                            { quintoOrd: numero },
+                            { sextoOrd: numero },
+                        ],
+                    },
+                });
+
+                ocorrenciasPorNumero[numero] = contagem;
+            }
+
+
+            const porcentagens = {};
+            for (let numero = 1; numero <= 60; numero++) {
+                const acertos = porJogosGanhos[numero];
+                const totalOcorrencias = ocorrenciasPorNumero[numero];
+
+                // Evita divisão por zero
+                const porcentagem = totalOcorrencias > 0 ? (acertos / totalOcorrencias) * 100 : 0;
+
+                porcentagens[numero] = porcentagem;
+            }
+
+            console.log(porcentagens);
+
+            res.status(200).json({
+                message: 'Análise concluída com sucesso',
+                data: porcentagens,
+            });
+
+
+
+
+
+        } catch (error) {
+            console.error('Erro ao analisar números sorteados:', erro);
+            res.status(500).json({ error: 'Erro ao analisar números sorteados' });
+        }
+    }
+
+
+
+
+
+
+
 
 
 
