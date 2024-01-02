@@ -33,8 +33,6 @@ module.exports = class megaController {
     static async ResultadoPorJogo(req, res) {
         const jogo = req.query.jogo
 
-        console.log("jogo", jogo)
-
         // Definir a URL da API da Mega Sena
         const megaSenaApiUrl = `https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/${jogo}`;
 
@@ -72,21 +70,19 @@ module.exports = class megaController {
 
         line.on("line", (data) => {
             const numbers = data.split(";").slice(2).map(Number); // Números começam a partir da terceira posição
-            //console.log(numbers)
+
 
             let sequenceCount = 0;
 
             for (let i = 0; i < numbers.length; i++) {
                 const num = numbers[i];
-                //console.log(num)
+
 
                 if (num >= 1 && num <= 60) {
                     sequenceCount++;
 
                     if (sequenceCount === sequenceLength) {
                         const sequence = numbers.slice(i - sequenceLength + 1, i + 1).join(",");
-
-                        //console.log(sequence, "aqui")
 
                         if (sequentialCounts[sequence]) {
                             sequentialCounts[sequence]++;
@@ -103,7 +99,6 @@ module.exports = class megaController {
         });
 
         line.on("close", () => {
-            console.log(sequentialCounts)
             // Encontre as 6 sequências mais frequentes
             const sortedSequences = Object.keys(sequentialCounts).sort((a, b) => sequentialCounts[b] - sequentialCounts[a]);
             const topSequences = sortedSequences.slice(0, 6);
@@ -163,7 +158,6 @@ module.exports = class megaController {
 
             const numerosSorteados = respostaData.dezenasSorteadasOrdemSorteio.map(numero => parseInt(numero));
             const numerosSorteadosOrdenado = respostaData.listaDezenas.map(numero => parseInt(numero));
-            console.log("data", respostaData.dataProximoConcurso)
 
             // Certifique-se de que a dataProximoConcurso seja uma data válida ou null
             const dataApuracao = respostaData.dataApuracao
@@ -222,7 +216,6 @@ module.exports = class megaController {
 
 
     static async postResultadoPorPeriodo(req, res) {
-        console.log("aqui")
         const jogoInicial = req.query.jogoInicial
 
 
@@ -279,7 +272,6 @@ module.exports = class megaController {
 
                 const numerosSorteados = respostaData.dezenasSorteadasOrdemSorteio.map(numero => parseInt(numero));
                 const numerosSorteadosOrdenado = respostaData.listaDezenas.map(numero => parseInt(numero));
-                console.log("data", respostaData.dataProximoConcurso)
 
                 // Certifique-se de que a dataProximoConcurso seja uma data válida ou null
                 const dataApuracao = respostaData.dataApuracao
@@ -312,8 +304,6 @@ module.exports = class megaController {
                     quintoOrd: numerosSorteadosOrdenado[4],
                     sextoOrd: numerosSorteadosOrdenado[5],
                 })
-
-                console.log("resultado", resultado)
 
                 const listaRateioPremio = resposta.data.listaRateioPremio;
 
